@@ -57,6 +57,4 @@ for (i in 1:count) {
     write.table(DF, file = stooq[i,1],col.names = T,row.names = F,sep = ",")
     file.remove(stooq[i,2])
 }
-# hourly =LEFT(A2,9)&"hourly"&RIGHT(A2,LEN(A2)-14)
-#        =LEFT(A2,12)&"hourly"&RIGHT(A2,LEN(A2)-17)
 
