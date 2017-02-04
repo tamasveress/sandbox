@@ -1,0 +1,7 @@
+library(gtrendsR)
+usr='tamas.@gmail.com'
+psw=''
+gconnect(usr = NULL, psw = NULL, verbose = FALSE)
+#session <- gconnect("usr@gmail.com", "psw")
+data<-gtrends("weather", geo = c("US"), start_date = "2009-01-01", end_date = "2015-01-01")
+df<-data[6]
