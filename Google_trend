@@ -1,8 +1,22 @@
 library(gtrendsR)
 usr='tamas.@gmail.com'
-psw=''
+psw='3'
 gconnect(usr = NULL, psw = NULL, verbose = FALSE)
 #session <- gconnect("usr@gmail.com", "psw")
-data<-gtrends("weather", geo = c("US"), start_date = "2009-01-01", end_date = "2015-01-01")
-df<-data.frame(data[6][1])
-df2<-data.frame(gtrends("hotel", geo = c("US"), start_date = "2009-01-01", end_date = "2015-01-01")[6][1])
+gtrend_in<-read.csv("gtrend_in.csv",stringsAsFactors=FALSE)
+gtrend_out<-read.csv("gtrend_out.csv",stringsAsFactors=FALSE)
+
+for (i in 29:2000) {
+from<-as.Date(gtrend_in$from[i],format = "%d/%m/%Y")
+to<-as.Date(gtrend_in$to[i],format = "%d/%m/%Y")
+df<-data.frame(gtrends("weather", geo = c("US"), start_date = from, end_date = to)[6][1])
+colnames(df)[1]<-'Name'
+newcol<-paste('col',i,sep="")
+colnames(df)[2]<-newcol
+df[which(grepl("Billings", df$Name)),2]<-df$Name[which(grepl("Billings", df$Name))+1]
+df$Name[which(grepl("Billings", df$Name))]<-"Billings, Mount"
+df<-df[-(which(grepl("Billings", df$Name))+1),]
+gtrend_out<-merge(x=gtrend_out,y=df[,c('Name',newcol)],by='Name',all.x=T)
+Sys.sleep(0.2)
+}
+
