@@ -4,4 +4,5 @@ psw=''
 gconnect(usr = NULL, psw = NULL, verbose = FALSE)
 #session <- gconnect("usr@gmail.com", "psw")
 data<-gtrends("weather", geo = c("US"), start_date = "2009-01-01", end_date = "2015-01-01")
-df<-data[6]
+df<-data.frame(data[6][1])
+df2<-data.frame(gtrends("hotel", geo = c("US"), start_date = "2009-01-01", end_date = "2015-01-01")[6][1])
