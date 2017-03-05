@@ -1,0 +1,10 @@
+#https://taylorwhitten.github.io/blog/Google_NLP_SentimentAnalysis
+library(RJSONIO)
+library(googleAuthR)
+library(httr)
+library(RCurl)
+library(ggplot2)
+library(gridExtra)
+library(psych)
+library(dplyr)
+
