@@ -1,0 +1,30 @@
+############ update 5min
+stooq<-read.csv("E:\\STOOQ\\STOOQ.csv",stringsAsFactors=FALSE)
+count<-(nrow(stooq))
+stooq$mcheck<-file.exists(stooq$mpath)
+stooq$newcheck<-file.exists(stooq$mpathnew)
+for (i in 1:count) {
+  # skip if no new file
+  if (stooq$newcheck[i]=='FALSE') {
+    next
+  } 
+  # skip if no new data
+  if (file.info(stooq$mpathnew[i])$size==0) {
+    next
+  } 
+  # only read old if exist
+  if (stooq$mcheck[i]=='FALSE') {
+    DF<-read.table(stooq$mpathnew[i], sep=",", header=T)
+  } else {
+    DF<-read.csv(stooq$mpath[i],stringsAsFactors=FALSE)
+  }     
+  DF2del<-read.table(stooq$mpathnew[i], sep=",", header=T)
+  #DF<-rbind(DF,DF2del)
+  #DF<- DF[!duplicated(DF[,c('Date','Time')],fromLast = T),]
+  #write.table(DF, file = stooq$mpath[i],col.names = T,row.names = F,sep = ",")
+  ###file.remove(stooq$mpathnew[i])
+  DF2del$Date<-as.Date(DF2del$Date)
+  DF2del<-DF2del[DF2del$Date>max(DF$Date),]
+  write.table(DF2del,stooq$mpath[i], row.names=F,append=T, quote= FALSE, sep=",", col.names=F)
+  rm(DF2del)
+}
