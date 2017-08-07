@@ -1,3 +1,72 @@
+############ ############ ############ ############ ############ 
+############ ############ Add div adj return ###### ############ 
+############ ############ ############ ############ ############
+
+# set vars
+day<-as.character(format(as.POSIXlt(Sys.time(), tz = "GMT"), format="%d")) #-84000
+stooq<-read.csv("E:\\STOOQ\\STOOQ.csv",stringsAsFactors=FALSE)
+stooq<-stooq[stooq$stock==1,]
+
+for (i in 24:8336) {
+  
+  if (file.exists(stooq$dpathnew[i])==F) {
+    stooq$del[i]<-1
+    next
+  }
+  df_day<-read.table(stooq$dpathnew[i], sep=",", header=T)
+  df_5m<-read.csv(stooq$mpath[i], stringsAsFactors =F)
+  df_5m<-df_5m[order(df_5m$Date,df_5m$Time),]
+  df_5m<-df_5m[df_5m$Date>as.Date(14812,origin=2000-01-01),]
+  df_day$Date<-as.Date(as.character(df_day$Date), "%Y%m%d")
+  df_5m$Date<-as.Date(df_5m$Date)
+  
+  # lagged flags
+  df_5m$day0<-format(as.POSIXlt(df_5m$Date), format="%d")
+  #df_5m$day1st<-c(df_5m$Date[-1], NA)
+  df_5m$day1st<-c(NA, df_5m$day0[1:(nrow(df_5m)-1)])
+  df_5m$day1st <- ifelse(df_5m$day1st==df_5m$day0, 0, 1)
+  df_5m$day2nd<-c(NA, df_5m$day1st[1:(nrow(df_5m)-1)])
+  
+  # day1st=open/lag_close day2nd=close/lag_open
+  # lag colse and open
+  df_5m$lagclose<-c(NA, df_5m$Close[1:(nrow(df_5m)-1)])
+  df_5m$lagopen<-c(NA, df_5m$Open[1:(nrow(df_5m)-1)])
+  # ret
+  df_5m$ret <- ifelse(df_5m$day1st==1, df_5m$Open/df_5m$lagclose, ifelse(df_5m$day2nd==1, df_5m$Close/df_5m$lagopen, 1))
+  
+  # Day ret and merge to 5min
+  df_day$lagclose<-c(NA, df_day$Close[1:(nrow(df_day)-1)])
+  df_day$retday <- df_day$Open/df_day$lagclose
+  df_day[,2:8]<-NULL
+  #merge
+  df_5m<-merge(df_5m,df_day,by='Date',all.x=T)
+  df_5m<-df[order(df$Date,df$Time),]
+  
+  # return we need
+  df_5m$ret <- ifelse(df_5m$day1st==1, df_5m$retday, ifelse(df_5m$day2nd==1, df_5m$Close/df_5m$lagopen, df_5m$Close/df_5m$lagclose))
+  df_5m$ret <-round(df_5m$ret,8)
+  df_5m$OpenInt<-NULL
+  df_5m$day0<-NULL
+  df_5m$day1st<-NULL
+  df_5m$day2nd<-NULL
+  df_5m$lagclose<-NULL
+  df_5m$lagopen<-NULL
+  df_5m$retday<-NULL
+  df_5m$ret[is.na(df_5m$ret)] <- 1
+  
+  write.table(df_5m,file=stooq$mpath[i],row.names=F,sep=",")
+}
+
+
+
+############ ############ ############ ############ ############ 
+############ ############ ############ ############ ############ 
+############ ############ ############ ############ ############ 
+
+
+
+
+
 ############ update 5min
 stooq<-read.csv("E:\\STOOQ\\STOOQ.csv",stringsAsFactors=FALSE)
 count<-(nrow(stooq))
