@@ -40,7 +40,7 @@ for (i in 24:8336) {
   df_day[,2:8]<-NULL
   #merge
   df_5m<-merge(df_5m,df_day,by='Date',all.x=T)
-  df_5m<-df[order(df$Date,df$Time),]
+  df_5m<-df_5m[order(df_5m$Date,df_5m$Time),]
   
   # return we need
   df_5m$ret <- ifelse(df_5m$day1st==1, df_5m$retday, ifelse(df_5m$day2nd==1, df_5m$Close/df_5m$lagopen, df_5m$Close/df_5m$lagclose))
@@ -57,36 +57,44 @@ for (i in 24:8336) {
   write.table(df_5m,file=stooq$mpath[i],row.names=F,sep=",")
 }
 
-stooq<-read.csv("D:\\STOOQ\\STOOQ.csv",stringsAsFactors=FALSE)
-stooq<-stooq[stooq$stock==0,]
-for (i in 1:8336) {
-   df_5m<-read.csv(stooq$mpath[i], stringsAsFactors =F)
-   df_5m$OpenInt<-NULL
-   write.table(df_5m,file=stooq$mpath[i],row.names=F,sep=",")
-  next
-  }
+################## CHECKS ##########################
+for (i in 1:8550) {
+  df_5m<-read.csv(stooq$mpath[i], stringsAsFactors =F)
+  stooq$mindate[i]<-min(df_5m$Date)
+  stooq$maxdate[i]<-max(df_5m$Date)
+  stooq$minR[i]<-min(df_5m$ret)
+  stooq$maxR[i]<-max(df_5m$ret)
+  stooq$uniquedate[i]<-length(unique(df_5m$Date))
+}
+write.table(stooq,file="D:\\STOOQ\\STOOQ.csv",row.names=F,sep=",")
+####################################################
+
+#stooq<-read.csv("D:\\STOOQ\\STOOQ.csv",stringsAsFactors=FALSE)
+#stooq$mcheck<-file.exists(stooq$mpath)
+#stooq$mnewcheck<-file.exists(stooq$mpathnew)
+#stooq$dnewcheck<-file.exists(stooq$dpathnew)
+#write.table(stooq,file="D:\\STOOQ\\STOOQ.csv",row.names=F,sep=",")
 ############ ############ ############ ############ ############ 
 ############ ############ ############ ############ ############ 
 ############ ############ ############ ############ ############ 
-
-
-
 
 
 ############ update 5min
-stooq<-read.csv("E:\\STOOQ\\STOOQ.csv",stringsAsFactors=FALSE)
-#write.table(stooq,file="D:\\STOOQ\\STOOQ.csv",row.names=F,sep=",")
+stooq<-read.csv("D:\\STOOQ\\STOOQ.csv",stringsAsFactors=FALSE)
 
 count<-(nrow(stooq))
-stooq$mcheck<-file.exists(stooq$mpath)
-stooq$newcheck<-file.exists(stooq$mpathnew)
+stooq$del<-0
+stooq$mnewcheck<-file.exists(stooq$mpathnew)
+stooq$dnewcheck<-file.exists(stooq$dpathnew)
 for (i in 1:count) {
   # skip if no new file
-  if (stooq$newcheck[i]=='FALSE') {
+  if (stooq$mnewcheck[i]=='FALSE') {
+    stooq$del[i]<-1
     next
   } 
   # skip if no new data
   if (file.info(stooq$mpathnew[i])$size==0) {
+    stooq$del[i]<-1
     next
   } 
   # only read old if exist
@@ -101,7 +109,14 @@ for (i in 1:count) {
   #write.table(DF, file = stooq$mpath[i],col.names = T,row.names = F,sep = ",")
   ###file.remove(stooq$mpathnew[i])
   DF2del$Date<-as.Date(DF2del$Date)
+  DF2del$OpenInt<-NULL
+  DF2del<-DF2del[order(DF2del$Date,DF2del$Time),]
+  DF2del$ret<-c(NA,DF2del$Close[2:nrow(DF2del)]/DF2del$Close[1:nrow(DF2del)-1])
+  
   DF2del<-DF2del[DF2del$Date>max(DF$Date),]
   write.table(DF2del,stooq$mpath[i], row.names=F,append=T, quote= FALSE, sep=",", col.names=F)
   rm(DF2del)
 }
+
+DFerr<-stooq[stooq$del==1,]
+write.table(DFerr,"D:\\STOOQ\\DFerr_1.csv", row.names=F,sep=",")
