@@ -4,7 +4,7 @@
 
 # set vars
 day<-as.character(format(as.POSIXlt(Sys.time(), tz = "GMT"), format="%d")) #-84000
-stooq<-read.csv("E:\\STOOQ\\STOOQ.csv",stringsAsFactors=FALSE)
+stooq<-read.csv("D:\\STOOQ\\STOOQ.csv",stringsAsFactors=FALSE)
 stooq<-stooq[stooq$stock==1,]
 
 for (i in 24:8336) {
@@ -57,8 +57,14 @@ for (i in 24:8336) {
   write.table(df_5m,file=stooq$mpath[i],row.names=F,sep=",")
 }
 
-
-
+stooq<-read.csv("D:\\STOOQ\\STOOQ.csv",stringsAsFactors=FALSE)
+stooq<-stooq[stooq$stock==0,]
+for (i in 1:8336) {
+   df_5m<-read.csv(stooq$mpath[i], stringsAsFactors =F)
+   df_5m$OpenInt<-NULL
+   write.table(df_5m,file=stooq$mpath[i],row.names=F,sep=",")
+  next
+  }
 ############ ############ ############ ############ ############ 
 ############ ############ ############ ############ ############ 
 ############ ############ ############ ############ ############ 
@@ -69,6 +75,8 @@ for (i in 24:8336) {
 
 ############ update 5min
 stooq<-read.csv("E:\\STOOQ\\STOOQ.csv",stringsAsFactors=FALSE)
+#write.table(stooq,file="D:\\STOOQ\\STOOQ.csv",row.names=F,sep=",")
+
 count<-(nrow(stooq))
 stooq$mcheck<-file.exists(stooq$mpath)
 stooq$newcheck<-file.exists(stooq$mpathnew)
