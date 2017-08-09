@@ -7,7 +7,7 @@ day<-as.character(format(as.POSIXlt(Sys.time(), tz = "GMT"), format="%d")) #-840
 stooq<-read.csv("D:\\STOOQ\\STOOQ.csv",stringsAsFactors=FALSE)
 stooq<-stooq[stooq$stock==1,]
 
-for (i in 24:8336) {
+for (i in 2815:7321) {
   
   if (file.exists(stooq$dpathnew[i])==F) {
     stooq$del[i]<-1
@@ -16,9 +16,9 @@ for (i in 24:8336) {
   df_day<-read.table(stooq$dpathnew[i], sep=",", header=T)
   df_5m<-read.csv(stooq$mpath[i], stringsAsFactors =F)
   df_5m<-df_5m[order(df_5m$Date,df_5m$Time),]
-  df_5m<-df_5m[df_5m$Date>as.Date(14812,origin=2000-01-01),]
-  df_day$Date<-as.Date(as.character(df_day$Date), "%Y%m%d")
-  df_5m$Date<-as.Date(df_5m$Date)
+  #df_5m<-df_5m[df_5m$Date>as.Date(14812,origin=2000-01-01),]
+  #df_day$Date<-as.Date(as.character(df_day$Date), "%Y%m%d")
+  #df_5m$Date<-as.Date(df_5m$Date)
   
   # lagged flags
   df_5m$day0<-format(as.POSIXlt(df_5m$Date), format="%d")
@@ -55,16 +55,25 @@ for (i in 24:8336) {
   df_5m$ret[is.na(df_5m$ret)] <- 1
   
   write.table(df_5m,file=stooq$mpath[i],row.names=F,sep=",")
+  rm(df_5m)
+  rm(df_day)
 }
 
 ################## CHECKS ##########################
-for (i in 1:8550) {
+# df_5m<-df_5m[df_5m$Date>as.Date(14868,origin=2000-01-01),]  #16mar6
+for (i in 2385:7321) {
   df_5m<-read.csv(stooq$mpath[i], stringsAsFactors =F)
+  #df_5m<-df_5m[df_5m$Date>'2016-03-06',]
+  #df_5m<-df_5m[order(df_5m$Date,df_5m$Time),]
+  #df_5m<-df_5m[!duplicated(df_5m[c('Date','Time')]),]
+  #write.table(df_5m,file=stooq$mpath[i],row.names=F,sep=",")
+
   stooq$mindate[i]<-min(df_5m$Date)
   stooq$maxdate[i]<-max(df_5m$Date)
   stooq$minR[i]<-min(df_5m$ret)
   stooq$maxR[i]<-max(df_5m$ret)
-  stooq$uniquedate[i]<-length(unique(df_5m$Date))
+  rm(df_5m)
+  #stooq$uniquedate[i]<-length(unique(df_5m$Date))
 }
 write.table(stooq,file="D:\\STOOQ\\STOOQ.csv",row.names=F,sep=",")
 ####################################################
@@ -78,8 +87,9 @@ write.table(stooq,file="D:\\STOOQ\\STOOQ.csv",row.names=F,sep=",")
 ############ ############ ############ ############ ############ 
 ############ ############ ############ ############ ############ 
 
-
+####################################################
 ############ update 5min
+####################################################
 stooq<-read.csv("D:\\STOOQ\\STOOQ.csv",stringsAsFactors=FALSE)
 
 count<-(nrow(stooq))
