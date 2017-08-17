@@ -126,6 +126,7 @@ for (i in 1:count) {
   DF2del<-DF2del[DF2del$Date>max(DF$Date),]
   write.table(DF2del,stooq$mpath[i], row.names=F,append=T, quote= FALSE, sep=",", col.names=F)
   rm(DF2del)
+  rm(DF)
 }
 
 DFerr<-stooq[stooq$del==1,]
