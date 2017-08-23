@@ -95,25 +95,39 @@ stooq<-read.csv("D:\\STOOQ\\STOOQ.csv",stringsAsFactors=FALSE)
 count<-(nrow(stooq))
 stooq$del<-0
 stooq$mnewcheck<-file.exists(stooq$mpathnew)
+
+stooq$mpathnew2<-gsub("1", "2", stooq$mpathnew)
+stooq$mnewcheck2<-file.exists(gsub("1", "2", stooq$mpathnew))
+stooq$folder<-0
+stooq$folder<- ifelse(stooq$mnewcheck2=='TRUE' & stooq$mnewcheck=='FALSE',2,0)
+
 stooq$dnewcheck<-file.exists(stooq$dpathnew)
+
 for (i in 1:count) {
+  # newfolder
+  newfolder<-stooq$mpathnew[i]
+  if (stooq$mnewcheck2[i]=='TRUE' & stooq$mnewcheck[i]=='FALSE') {
+    newfolder<-stooq$mpathnew2[i]
+  }
+  
   # skip if no new file
-  if (stooq$mnewcheck[i]=='FALSE') {
+  if (stooq$mnewcheck2[i]=='FALSE' & stooq$mnewcheck[i]=='FALSE') {
     stooq$del[i]<-1
     next
   } 
   # skip if no new data
-  if (file.info(stooq$mpathnew[i])$size==0) {
+  if (file.info(newfolder)$size==0) {
     stooq$del[i]<-1
     next
   } 
+  
   # only read old if exist
   if (stooq$mcheck[i]=='FALSE') {
-    DF<-read.table(stooq$mpathnew[i], sep=",", header=T)
+    DF<-read.table(newfolder, sep=",", header=T)
   } else {
     DF<-read.csv(stooq$mpath[i],stringsAsFactors=FALSE)
   }     
-  DF2del<-read.table(stooq$mpathnew[i], sep=",", header=T)
+  DF2del<-read.table(newfolder, sep=",", header=T)
   #DF<-rbind(DF,DF2del)
   #DF<- DF[!duplicated(DF[,c('Date','Time')],fromLast = T),]
   #write.table(DF, file = stooq$mpath[i],col.names = T,row.names = F,sep = ",")
