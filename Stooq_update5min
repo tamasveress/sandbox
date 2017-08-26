@@ -104,6 +104,8 @@ stooq$folder<- ifelse(stooq$mnewcheck2=='TRUE' & stooq$mnewcheck=='FALSE',2,0)
 stooq$dnewcheck<-file.exists(stooq$dpathnew)
 
 for (i in 1:count) {
+  rm(DF2del)
+  rm(DF)
   # newfolder
   newfolder<-stooq$mpathnew[i]
   if (stooq$mnewcheck2[i]=='TRUE' & stooq$mnewcheck[i]=='FALSE') {
@@ -139,8 +141,6 @@ for (i in 1:count) {
   
   DF2del<-DF2del[DF2del$Date>max(DF$Date),]
   write.table(DF2del,stooq$mpath[i], row.names=F,append=T, quote= FALSE, sep=",", col.names=F)
-  rm(DF2del)
-  rm(DF)
 }
 
 DFerr<-stooq[stooq$del==1,]
