@@ -1,2 +1,5 @@
 # https://gist.github.com/thertrader/9509411
 # http://www.thertrader.com/2014/03/14/using-genetic-algorithms-in-quantitative-trading/
+#https://cran.r-project.org/web/packages/GA/GA.pdf  https://www.r-bloggers.com/genetic-algorithms-a-simple-r-example/
+#https://cran.r-project.org/web/packages/genalg/genalg.pdf
+#https://www.r-bloggers.com/deep-learning-with-r/
