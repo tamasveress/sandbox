@@ -3,3 +3,6 @@
 #https://cran.r-project.org/web/packages/GA/GA.pdf  https://www.r-bloggers.com/genetic-algorithms-a-simple-r-example/
 #https://cran.r-project.org/web/packages/genalg/genalg.pdf
 #https://www.r-bloggers.com/deep-learning-with-r/
+#https://www.analyticsvidhya.com/blog/2017/07/introduction-to-genetic-algorithm/
+#https://blog.coast.ai/lets-evolve-a-neural-network-with-a-genetic-algorithm-code-included-8809bece164
+#https://www.kaggle.com/pablocastilla/predict-stock-prices-with-lstm/comments
