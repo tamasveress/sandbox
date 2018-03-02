@@ -1,0 +1,98 @@
+library(Rtsne)
+library(reshape)
+library(reshape2)
+library(tidyr)
+library(lubridate)
+library(forecast)
+library(TTR)
+library(xgboost)
+library(Metrics)
+
+train <- read.csv("D:\\McKinsey\\train.csv",stringsAsFactors=FALSE)
+train$DateTime <- ymd_hms(train$DateTime)
+
+###### EXPLORATION
+
+###### cast + time series chart
+train$ID <- NULL
+train_wide <- cast(train, DateTime ~ Junction, value.var= "Vehicles") 
+cor(train_wide$`1`,train_wide$`2`)
+plot(train_wide$`1`[1:14344])
+# 0.8669233
+train_wide4 <- train_wide[complete.cases(train_wide),]
+cor(train_wide4$`1`,train_wide4$`4`)
+# 0.8669233
+
+#### FEATURES
+
+train1 <- train_wide[,c(1,2)]
+colnames(train1)[2] <- 'target'
+# weekday 
+train1$wday<- as.POSIXlt(train1$DateTime)$wday
+train1$wday <- as.numeric(train1$wday)
+train1 <- transform(train1, MON = ifelse(wday==1, 1, 0))
+train1 <- transform(train1, TUE = ifelse(wday==2, 1, 0))
+train1 <- transform(train1, WED = ifelse(wday==3, 1, 0))
+train1 <- transform(train1, THU = ifelse(wday==4, 1, 0))
+train1 <- transform(train1, FRI = ifelse(wday==5, 1, 0))
+train1 <- transform(train1, SAT = ifelse(wday==6, 1, 0))
+train1 <- transform(train1, SUN = ifelse(wday==0, 1, 0))
+train1$wday <-NULL
+# year, month, hour
+train1 <- train1 %>% separate(DateTime, c("date", "time"), " ")
+train1 <- train1 %>% separate(time, c("hour", "minute", "second"), ":")
+train1$minute <- NULL
+train1$second <- NULL
+train1 <- train1 %>% separate(date, c("year", "month", "day"), "-")
+train1$day <- NULL
+train1$year <- as.numeric(as.character(train1$year))
+train1$month <- as.numeric(as.character(train1$month))
+train1$hour  <- as.numeric(as.character(train1$hour))
+
+######## XGB #########################################
+
+test_target <- data.frame(target=train1[c(14001:14592),c('target')])
+test <- train1[c(14001:14592),c('year','month','hour','MON','TUE','WED','THU','FRI','SAT','SUN')]
+
+train_target <- data.frame(target=train1[c(4000:14000),c('target')])
+train <- train1[c(4000:14000),c('year','month','hour','MON','TUE','WED','THU','FRI','SAT','SUN')]
+
+## Making a small validation set to analyze progress
+h <-sample(nrow(train_target),1000)
+dval   <-xgb.DMatrix(data=data.matrix(train[h,]),label=train_target$target[h])
+dtrain <-xgb.DMatrix(data=data.matrix(train[-h,]),label=train_target$target[-h])
+cat("start training a model \n")
+set.seed(3322)
+xgb_watchlist <-list(val=dval,train=dtrain)
+xgb_params <- list(  objective           = "reg:linear",  
+                     booster = "gbtree",
+                     eval_metric = "rmse",
+                     eta                 = 0.1,  
+                     max_depth           = 5,  
+                     subsample           = 0.8,     
+                     colsample_bytree    = 0.8,
+                     min_child_weight = 1
+)
+
+xgb_model <- xgb.train(
+  params              = xgb_params, 
+  data                = dtrain, 
+  nrounds             = 200,
+  verbose             = 1,  #0 if full training set and no watchlist provided
+  watchlist           = xgb_watchlist,
+  print.every.n       = 20,
+  maximize            = FALSE
+)
+
+
+###### CV set perf
+
+pred_xgb <- predict(xgb_model, data.matrix(test))
+error <- data.frame(err=pred_xgb-test_target$target)
+plot(error$err)
+rmse(pred_xgb, test_target)
+# 7.703105
+
+# Compute feature importance matrix
+importance_matrix <- xgb.importance(colnames(train), model = xgb_model)
+xgb.plot.importance(importance_matrix[1:10,])
