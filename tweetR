@@ -1,0 +1,54 @@
+library(twitteR)
+library(ROAuth)
+library(plyr)
+library(dplyr)
+library(stringr)
+library(ggplot2)
+library(base64enc)
+#connect to API
+download.file(url='http://curl.haxx.se/ca/cacert.pem', destfile='cacert.pem')
+reqURL <- 'https://api.twitter.com/oauth/request_token'
+accessURL <- 'https://api.twitter.com/oauth/access_token'
+authURL <- 'https://api.twitter.com/oauth/authorize'
+consumerKey <- '19ioHfXHXiFw57DAX8xJe1a0f' #put the Consumer Key from Twitter Application
+consumerSecret <- '6OxnNfvsQasq0v80Xchc0BpKse93Q9nH0nfFxKRmiF0ZAdszoq'  #put the Consumer Secret from Twitter Application
+Cred <- setup_twitter_oauth(consumer_key=consumerKey, 
+                    consumer_secret=consumerSecret, 
+                    access_token=	'710465911-oDwnDIj2HiVJOBXM0qM6lLYa2mXSJf9XoaIXrZhk', 
+                    access_secret='TBKr6Y3SKzrfRSAAvpB79338z8CqwnN2tKMpXaacLEWqd')
+save(Cred, file='twitter authentication.Rdata')
+load('twitter authentication.Rdata') #Once you launch the code first time, you can start from this line in the future (libraries should be connected)
+#registerTwitterOAuth(Cred)
+
+# read symbol csv
+stooq <- read.csv('F:\\STOOQ\\STOOQ.csv', stringsAsFactors = F)
+
+# Loop through symbols
+for (i in 1:8000) {
+  
+  sym <- paste('#',stooq$sym[i], sep='') #"#AAPL"
+  #Rtweets(n=3)
+  #searchTwitter(sym, n=10)
+  list <- searchTwitter(sym, n=50)
+  df <- twListToDF(list)
+  df <- df[, order(names(df))]
+  df$created <- strftime(df$created, '%Y-%m-%d')
+  
+  # word sentiment lists
+  pos.words <- c('accelerated', 'booming')
+  neg.words <- c('hit', 'trumbled', 'FDA', 'failed', 'king zero')
+  
+  # scoring
+  df$text <- as.factor(df$text)
+  df$text <- gsub('[[:punct:]]', "", df$text)
+  df$text <- gsub('[[:cntrl:]]', "", df$text)
+  #df$text <- gsub('\d+', "", df$text)
+  df$text <- tolower(df$text)
+  df$sent <- grepl('accelerated', df$text, fixed=TRUE)
+  DF <- df[df$sent==TRUE,]
+  
+  if (nrow(DF)>0) {
+    DF$text[1]
+    #sym 
+  }
+} # symbol loop end
