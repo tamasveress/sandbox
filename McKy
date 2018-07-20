@@ -10,57 +10,56 @@ library(TTR)
 library(xgboost)
 library(Metrics)
 
-train <- read.csv("D:\\McKinsey\\train.csv",stringsAsFactors=FALSE)
-train$DateTime <- ymd_hms(train$DateTime)
+train <- read.csv("D:\\AA\\train_ZoGVYWq.csv",stringsAsFactors = F)
+test <- read.csv("D:\\AA\\test_66516Ee.csv",stringsAsFactors = F)
+submission <- read.csv("D:\\AA\\sample_submission_sLex1ul.csv",stringsAsFactors = F)
+#train$DateTime <- ymd_hms(train$DateTime)
 
 ###### EXPLORATION
+mean(train[,13])
+0.93741
+mean(train[is.na(train$application_underwriting_score),13])
+mean(train$application_underwriting_score,na.rm=T)
 
-###### cast + time series chart
-train$ID <- NULL
-train_wide <- cast(train, DateTime ~ Junction, value.var= "Vehicles") 
-cor(train_wide$`1`,train_wide$`2`)
-plot(train_wide$`1`[1:14344])
-plot(train_wide$`4`[10000:14592])
-# 0.8669233
-train_wide4 <- train_wide[complete.cases(train_wide),]
-cor(train_wide4$`1`,train_wide4$`4`)
-# 0.8669233
+###### NA fill
+ (nrow(train)*mean(train$application_underwriting_score)+nrow(test)*mean(test$application_underwriting_score))/(nrow(train)+nrow(test))
+#99.06567
+train$application_underwriting_score[is.na(train$application_underwriting_score)] <- mean(train$application_underwriting_score, na.rm=T)
+train$Count_3.6_months_late[is.na(train$Count_3.6_months_late)] <- 0
+train$Count_6.12_months_late[is.na(train$Count_6.12_months_late)] <- 0
+train$Count_more_than_12_months_late[is.na(train$Count_more_than_12_months_late)] <- 0
+test$application_underwriting_score[is.na(test$application_underwriting_score)] <- mean(test$application_underwriting_score, na.rm=T)
+test$Count_3.6_months_late[is.na(test$Count_3.6_months_late)] <- 0
+test$Count_6.12_months_late[is.na(test$Count_6.12_months_late)] <- 0
+test$Count_more_than_12_months_late[is.na(test$Count_more_than_12_months_late)] <- 0
 
 #### FEATURES
+train <- transform(train, sourcing_A = ifelse(sourcing_channel=='A', 1, 0))
+train <- transform(train, sourcing_B = ifelse(sourcing_channel=='B', 1, 0))
+train <- transform(train, sourcing_C = ifelse(sourcing_channel=='C', 1, 0))
+train <- transform(train, sourcing_D = ifelse(sourcing_channel=='D', 1, 0))
+train$sourcing_channel <- NULL
+train <- transform(train, residence_area_type = ifelse(residence_area_type=='Urban', 1, 0))
+test <- transform(test, sourcing_A = ifelse(sourcing_channel=='A', 1, 0))
+test <- transform(test, sourcing_B = ifelse(sourcing_channel=='B', 1, 0))
+test <- transform(test, sourcing_C = ifelse(sourcing_channel=='C', 1, 0))
+test <- transform(test, sourcing_D = ifelse(sourcing_channel=='D', 1, 0))
+test$sourcing_channel <- NULL
+test <- transform(test, residence_area_type = ifelse(residence_area_type=='Urban', 1, 0))
 
-train1 <- train_wide[,c(1,2)]
-colnames(train1)[2] <- 'target'
-# weekday 
-train1$wday<- as.POSIXlt(train1$DateTime)$wday
-train1$wday <- as.numeric(train1$wday)
-train1 <- transform(train1, MON = ifelse(wday==1, 1, 0))
-train1 <- transform(train1, TUE = ifelse(wday==2, 1, 0))
-train1 <- transform(train1, WED = ifelse(wday==3, 1, 0))
-train1 <- transform(train1, THU = ifelse(wday==4, 1, 0))
-train1 <- transform(train1, FRI = ifelse(wday==5, 1, 0))
-train1 <- transform(train1, SAT = ifelse(wday==6, 1, 0))
-train1 <- transform(train1, SUN = ifelse(wday==0, 1, 0))
-train1$wday <-NULL
-# year, month, hour
-train1 <- train1 %>% separate(DateTime, c("date", "time"), " ")
-train1 <- train1 %>% separate(time, c("hour", "minute", "second"), ":")
-train1$minute <- NULL
-train1$second <- NULL
-train1 <- train1 %>% separate(date, c("year", "month", "day"), "-")
-train1$year <- as.numeric(as.character(train1$year))
-train1$month <- as.numeric(as.character(train1$month))
-train1$day  <- as.numeric(as.character(train1$day))
-train1$hour  <- as.numeric(as.character(train1$hour))
-train1$time  <- train1$year-2015 + train1$month/12 + train1$day/365
-train1$day <- NULL
   
 ######## XGB #########################################
 
-test_target <- data.frame(target=train1[c(14001:14592),c('target')])
-test <- train1[c(14001:14592),c('time','year','month','hour','MON','TUE','WED','THU','FRI','SAT','SUN')]
+test_target <- data.frame(renewal=train[c(50001:79583),c('renewal')])
+test <- train[c(50001:79583),c('perc_premium_paid_by_cash_credit','age_in_days','Income',
+  'Count_3.6_months_late','Count_6.12_months_late','Count_more_than_12_months_late','application_underwriting_score',
+  'no_of_premiums_paid','residence_area_type','premium','sourcing_A','sourcing_B','sourcing_C','sourcing_D')]
 
-train_target <- data.frame(target=train1[c(1:14000),c('target')])
-train <- train1[c(1:14000),c('time','year','month','hour','MON','TUE','WED','THU','FRI','SAT','SUN')]
+train_target <- data.frame(renewal=train[c(1:50001),c('renewal')])
+train <- train[c(1:50001),c('perc_premium_paid_by_cash_credit','age_in_days','Income',
+  'Count_3.6_months_late','Count_6.12_months_late','Count_more_than_12_months_late','application_underwriting_score',
+  'no_of_premiums_paid','residence_area_type','premium','sourcing_A','sourcing_B','sourcing_C','sourcing_D')]
+  
 
 ## Making a small validation set to analyze progress
 h <-sample(nrow(train_target),1000)
