@@ -180,6 +180,8 @@ i_opt <- 0
 for (i in 1:34224) {
     premium <- test$premium[i]   #/100 percentage????
     baseprob <- submission$renewal[i]
+    baseprobcent <- 0.2*submission$renewal[i]+0.8*0.94
+    baseprob <- baseprobcent
     p <- round(premium*baseprob)
     #incentive_lookup$opt_i[inc_lookup$premium==p]
     i_opt <- incentive_lookup$opt_i[incentive_lookup$premium==p]
@@ -194,8 +196,11 @@ for (i in 1:34224) {
     submission$incentives[i] <- i_opt
 }
 
+mean(submission$incentives[submission$incentives>100])
+mean(submission_420$incentives[submission_420$incentives>100])
 
-
+mean(submission$incentives[submission$incentives<100])
+mean(submission_420$incentives[submission_420$incentives<100])
 
 
 
