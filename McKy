@@ -1,11 +1,6 @@
-# https://github.com/sm86/McKinsey-Analytics-Hackathon/blob/master/DataPreparation.R
-
-library(Rtsne)
 library(reshape)
 library(reshape2)
 library(tidyr)
-library(lubridate)
-library(forecast)
 library(pROC)
 library(xgboost)
 library(Metrics)
@@ -13,7 +8,7 @@ library(Metrics)
 train <- read.csv("D:\\AA\\train_ZoGVYWq.csv",stringsAsFactors = F)
 test <- read.csv("D:\\AA\\test_66516Ee.csv",stringsAsFactors = F)
 submission <- read.csv("D:\\AA\\sample_submission_sLex1ul.csv",stringsAsFactors = F)
-inc_lookup <- read.csv("D:\\AA\\incentive_lookup.csv",stringsAsFactors = F)
+inc_lookup <- read.csv("D:\\AA\\inc_lookup.csv",stringsAsFactors = F)
 #train$DateTime <- ymd_hms(train$DateTime)
 
 ###### EXPLORATION
@@ -27,11 +22,11 @@ cor(test$Count_3.6_months_late,test$application_underwriting_score)
 ###### NA fill
  (nrow(train)*mean(train$application_underwriting_score)+nrow(test)*mean(test$application_underwriting_score))/(nrow(train)+nrow(test))
 #99.06567
-train$application_underwriting_score[is.na(train$application_underwriting_score)] <- mean(train$application_underwriting_score, na.rm=T)
+#train$application_underwriting_score[is.na(train$application_underwriting_score)] <- mean(train$application_underwriting_score, na.rm=T)
 train$Count_3.6_months_late[is.na(train$Count_3.6_months_late)] <- 0
 train$Count_6.12_months_late[is.na(train$Count_6.12_months_late)] <- 0
 train$Count_more_than_12_months_late[is.na(train$Count_more_than_12_months_late)] <- 0
-test$application_underwriting_score[is.na(test$application_underwriting_score)] <- mean(test$application_underwriting_score, na.rm=T)
+#test$application_underwriting_score[is.na(test$application_underwriting_score)] <- mean(test$application_underwriting_score, na.rm=T)
 test$Count_3.6_months_late[is.na(test$Count_3.6_months_late)] <- 0
 test$Count_6.12_months_late[is.na(test$Count_6.12_months_late)] <- 0
 test$Count_more_than_12_months_late[is.na(test$Count_more_than_12_months_late)] <- 0
@@ -50,22 +45,72 @@ test <- transform(test, sourcing_D = ifelse(sourcing_channel=='D', 1, 0))
 test$sourcing_channel <- NULL
 test <- transform(test, residence_area_type = ifelse(residence_area_type=='Urban', 1, 0))
 
-  
-######## XGB #########################################
+#df_train <- train
+#df_test<- test
 
-test_target <- data.frame(target=train[c(50001:79583),c('renewal')])
-test <- train[c(50001:79583),c('perc_premium_paid_by_cash_credit','age_in_days','Income',
+############## Score prediction ####################
+train$train <- 1
+test$train <- 0
+train$renewal <- NULL
+traintest<-rbind(train,test)
+#DF<-traintest[!complete.cases(traintest),]
+train<-traintest[complete.cases(traintest),]
+
+train_target <- data.frame(target=train[,c('application_underwriting_score')])
+train <- train[,c('perc_premium_paid_by_cash_credit','age_in_days','Income',
+  'Count_3.6_months_late','Count_6.12_months_late','Count_more_than_12_months_late',
+  'no_of_premiums_paid','residence_area_type','premium','sourcing_A','sourcing_B','sourcing_C','sourcing_D')]
+
+## Making a small validation set to analyze progress
+h <-sample(nrow(train_target),10000)
+dval   <-xgb.DMatrix(data=data.matrix(train[h,]),label=train_target$target[h])
+dtrain <-xgb.DMatrix(data=data.matrix(train[-h,]),label=train_target$target[-h])
+cat("start training a model \n")
+set.seed(3322)
+xgb_watchlist <-list(val=dval,train=dtrain)
+xgb_params <- list(  objective           = "reg:linear",  
+                     booster = "gbtree",
+                     eval_metric = "rmse",
+                     eta                 = 0.01,  
+                     max_depth           = 5,  
+                     subsample           = 0.7,     
+                     colsample_bytree    = 0.7,
+                     min_child_weight = 1
+)
+xgb_model_score <- xgb.train(
+  params              = xgb_params, 
+  data                = dtrain, 
+  nrounds             = 1000,
+  verbose             = 0,  #0 if full training set and no watchlist provided
+  watchlist           = xgb_watchlist,
+  print_every_n       = 20,
+  maximize            = FALSE
+)
+pred_score <- predict(xgb_model_score, data.matrix(traintest))
+traintest$pred_score <- pred_score
+traintest$application_underwriting_score[is.na(traintest$application_underwriting_score)] <- traintest$pred_score[is.na(traintest$application_underwriting_score)]
+# excess score
+traintest$excess_score<-traintest$application_underwriting_score-traintest$pred_score
+# late2income
+traintest$late2income<-(traintest$Count_3.6_months_late+1.2*traintest$Count_6.12_months_late+1.5*traintest$Count_more_than_12_months_late)*traintest$premium/traintest$Income
+
+######## renewal prediction XGB #########################################
+train <- traintest[traintest$train==1,]
+test <- traintest[traintest$train==0,]
+
+test_target <- data.frame(target=df_train[c(50001:79583),c('renewal')])
+test <- train[c(50001:79583),c('pred_score','excess_score','late2income','perc_premium_paid_by_cash_credit','age_in_days','Income',
   'Count_3.6_months_late','Count_6.12_months_late','Count_more_than_12_months_late','application_underwriting_score',
   'no_of_premiums_paid','residence_area_type','premium','sourcing_A','sourcing_B','sourcing_C','sourcing_D')]
 
-train_target <- data.frame(target=train[c(1:50001),c('renewal')])
-train <- train[c(1:50001),c('perc_premium_paid_by_cash_credit','age_in_days','Income',
+train_target <- data.frame(target=df_train[c(1:50001),c('renewal')])
+train <- train[c(1:50001),c('pred_score','excess_score','late2income','perc_premium_paid_by_cash_credit','age_in_days','Income',
   'Count_3.6_months_late','Count_6.12_months_late','Count_more_than_12_months_late','application_underwriting_score',
   'no_of_premiums_paid','residence_area_type','premium','sourcing_A','sourcing_B','sourcing_C','sourcing_D')]
   
 
 ## Making a small validation set to analyze progress
-h <-sample(nrow(train_target),1000)
+h <-sample(nrow(train_target),10000)
 dval   <-xgb.DMatrix(data=data.matrix(train[h,]),label=train_target$target[h])
 dtrain <-xgb.DMatrix(data=data.matrix(train[-h,]),label=train_target$target[-h])
 cat("start training a model \n")
@@ -74,7 +119,7 @@ xgb_watchlist <-list(val=dval,train=dtrain)
 xgb_params <- list(  objective           = "binary:logistic",  
                      booster = "gbtree",
                      eval_metric = "auc",
-                     eta                 = 0.02,  
+                     eta                 = 0.01,  
                      max_depth           = 4,  
                      subsample           = 0.6,     
                      colsample_bytree    = 0.6,
@@ -84,7 +129,7 @@ xgb_params <- list(  objective           = "binary:logistic",
 xgb_model <- xgb.train(
   params              = xgb_params, 
   data                = dtrain, 
-  nrounds             = 420,
+  nrounds             = 700,
   verbose             = 1,  #0 if full training set and no watchlist provided
   watchlist           = xgb_watchlist,
   print_every_n       = 20,
@@ -104,25 +149,27 @@ auc(data.matrix(test_target), data.matrix(pred_test))
 importance_matrix <- xgb.importance(colnames(train), model = xgb_model)
 xgb.plot.importance(importance_matrix[1:10,])
 
-#########  XGB whole sample
 
-test <- test[,c('perc_premium_paid_by_cash_credit','age_in_days','Income',
+#########  XGB whole sample
+test <- traintest[traintest$train==0,]
+
+test <- test[,c('pred_score','excess_score','late2income','perc_premium_paid_by_cash_credit','age_in_days','Income',
   'Count_3.6_months_late','Count_6.12_months_late','Count_more_than_12_months_late','application_underwriting_score',
   'no_of_premiums_paid','residence_area_type','premium','sourcing_A','sourcing_B','sourcing_C','sourcing_D')]
- 
-xgb_model_420 <- xgb.train(
-    params              = xgb_params, 
-    data                = dtrain, 
-    nrounds             = 420,
-    verbose             = 0,  #0 if full training set and no watchlist provided
-    watchlist           = xgb_watchlist,
-    print_every_n       = 20,
-    maximize            = FALSE
-)
 
-pred_submit_420 <- predict(xgb_model_420, data.matrix(test))
-submission$renewal<-pred_submit_420
-write.csv(submission, "D:\\AA\\submission_420.csv")
+# xgb_model_420----xgb_model_01_700_late2income
+pred_submit <- predict(xgb_model_01_700_late2income, data.matrix(test))
+submission$renewal<-pred_submit
+submission$incentives<-submission_420$incentives
+write.csv(submission, "D:\\AA\\submission_01_700_late2income.csv", row.names=F)
+
+#submission_420 <- read.csv("D:\\AA\\submission_420.csv",stringsAsFactors = F)
+#cor(submission_420$renewal,submission$renewal_late2)
+# 0.9922772 
+
+
+
+
 
 ### optimal incentive   ############################
 
@@ -130,20 +177,23 @@ premium <- test$premium[i]   #/100 percentage????
 baseprob <- submission$renewal[i]
 i_opt <- 0
 
-for (p in 1:60000) {
-    premium <- p
-    opt_i <- 0
-    inc_lookup$opt_i[i] <- opt_i
-for (i in 1:3000) {
+for (i in 1:34224) {
+    premium <- test$premium[i]   #/100 percentage????
+    baseprob <- submission$renewal[i]
+    p <- round(premium*baseprob)
+    #incentive_lookup$opt_i[inc_lookup$premium==p]
+    i_opt <- incentive_lookup$opt_i[incentive_lookup$premium==p]
     
-    effort <- 10*(1-exp(-i/400))
+    effort <- 10*(1-exp(-i_opt/400))
     dprob <- 20*(1-exp(-effort/5))
-    diff <- exp(-effort/5)*4  *exp(-i/400)/40 * premium -1
-    if (diff > 0) {i_opt <- i}
+    
+    if (((dprob/100+1)*baseprob)>1) {
+        effort <- (-5)*log(1-(1/baseprob)/20)
+        i_opt <- (-400) * log(1-effort/10)
+    }
+    submission$incentives[i] <- i_opt
 }
-inc_lookup$opt_i[p] <- opt_i
-}
-write.csv(inc_lookup, "D:\\AA\\incentive_lookup.csv")
+
 
 
 
@@ -152,6 +202,7 @@ write.csv(inc_lookup, "D:\\AA\\incentive_lookup.csv")
 
 
 ######## inc lookup table
+inc_lookup <- read.csv("D:\\AA\\inc_lookup.csv",stringsAsFactors = F)
 for (p in 1:60000) {
     premium <- p
     opt_i <- 0
@@ -163,8 +214,8 @@ for (i in 1:3000) {
     diff <- exp(-effort/5)*4  *exp(-i/400)/40 * premium -1
     if (diff > 0) {i_opt <- i}
 }
-inc_lookup$opt_i[p] <- opt_i
+inc_lookup$opt_i[p] <- i_opt
 }
-write.csv(inc_lookup, "D:\\AA\\incentive_lookup.csv")
+write.csv(inc_lookup, "D:\\AA\\inc_lookup.csv", row.names=F)
 
 
