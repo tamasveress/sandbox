@@ -97,20 +97,24 @@ traintest$late2income<-(traintest$Count_3.6_months_late+1.2*traintest$Count_6.12
 ######## renewal prediction XGB #########################################
 train <- traintest[traintest$train==1,]
 test <- traintest[traintest$train==0,]
+varsall <- c('pred_score','excess_score','late2income','perc_premium_paid_by_cash_credit','age_in_days','Income',
+  'Count_3.6_months_late','Count_6.12_months_late','Count_more_than_12_months_late','application_underwriting_score',
+  'no_of_premiums_paid','residence_area_type','premium','sourcing_A','sourcing_B','sourcing_C','sourcing_D')
+vars3 <- c('late2income','perc_premium_paid_by_cash_credit','Count_6.12_months_late')
+# 0.8245
+vars6 <- c('late2income','perc_premium_paid_by_cash_credit','Count_3.6_months_late','Count_6.12_months_late','Count_more_than_12_months_late','age_in_days')
+# 0.831
+vars8 <- c('Income','application_underwriting_score','late2income','perc_premium_paid_by_cash_credit','Count_3.6_months_late','Count_6.12_months_late','Count_more_than_12_months_late','age_in_days')
+#
 
 test_target <- data.frame(target=df_train[c(50001:79583),c('renewal')])
-test <- train[c(50001:79583),c('pred_score','excess_score','late2income','perc_premium_paid_by_cash_credit','age_in_days','Income',
-  'Count_3.6_months_late','Count_6.12_months_late','Count_more_than_12_months_late','application_underwriting_score',
-  'no_of_premiums_paid','residence_area_type','premium','sourcing_A','sourcing_B','sourcing_C','sourcing_D')]
+test <- train[c(50001:79583), vars8]
 
 train_target <- data.frame(target=df_train[c(1:50001),c('renewal')])
-train <- train[c(1:50001),c('pred_score','excess_score','late2income','perc_premium_paid_by_cash_credit','age_in_days','Income',
-  'Count_3.6_months_late','Count_6.12_months_late','Count_more_than_12_months_late','application_underwriting_score',
-  'no_of_premiums_paid','residence_area_type','premium','sourcing_A','sourcing_B','sourcing_C','sourcing_D')]
-  
+train <- train[c(1:50001), vars8]
 
 ## Making a small validation set to analyze progress
-h <-sample(nrow(train_target),10000)
+h <-sample(nrow(train_target),1000)
 dval   <-xgb.DMatrix(data=data.matrix(train[h,]),label=train_target$target[h])
 dtrain <-xgb.DMatrix(data=data.matrix(train[-h,]),label=train_target$target[-h])
 cat("start training a model \n")
@@ -139,7 +143,7 @@ xgb_model <- xgb.train(
 ###### train error
 
 pred_test <- predict(xgb_model, data.matrix(test))
-auc(data.matrix(test_target), data.matrix(pred_test))
+auc(data.matrix(test_target), data.matrix(pred_test))  #837
 #### 0.8433
 
 #error <- data.frame(err=pred_xgb-train_target$target)
@@ -152,16 +156,44 @@ xgb.plot.importance(importance_matrix[1:10,])
 
 #########  XGB whole sample
 test <- traintest[traintest$train==0,]
+train <- traintest[traintest$train==1,]
+train_target <- data.frame(target=df_train[,c('renewal')])
+train <- train[, vars6]
+test <- test[,vars6]
 
-test <- test[,c('pred_score','excess_score','late2income','perc_premium_paid_by_cash_credit','age_in_days','Income',
-  'Count_3.6_months_late','Count_6.12_months_late','Count_more_than_12_months_late','application_underwriting_score',
-  'no_of_premiums_paid','residence_area_type','premium','sourcing_A','sourcing_B','sourcing_C','sourcing_D')]
+## Making a small validation set to analyze progress
+h <-sample(nrow(train_target),10000)
+dval   <-xgb.DMatrix(data=data.matrix(train[h,]),label=train_target$target[h])
+dtrain <-xgb.DMatrix(data=data.matrix(train[-h,]),label=train_target$target[-h])
+cat("start training a model \n")
+set.seed(3622)
+xgb_watchlist <-list(val=dval,train=dtrain)
+xgb_params <- list(  objective           = "binary:logistic",  
+                     booster = "gbtree",
+                     eval_metric = "auc",
+                     eta                 = 0.05,  
+                     max_depth           = 4,  
+                     subsample           = 0.8,     
+                     colsample_bytree    = 0.8,
+                     min_child_weight = 1
+)
+
+xgb_model <- xgb.train(
+    params              = xgb_params, 
+    data                = dtrain, 
+    nrounds             = 160,
+    verbose             = 1,  #0 if full training set and no watchlist provided
+    watchlist           = xgb_watchlist,
+    print_every_n       = 20,
+    maximize            = FALSE
+)
 
 # xgb_model_420----xgb_model_01_700_late2income
-pred_submit <- predict(xgb_model_01_700_late2income, data.matrix(test))
+
+pred_submit <- predict(xgb_model_8v280, data.matrix(test))
 submission$renewal<-pred_submit
-submission$incentives<-submission_420$incentives
-write.csv(submission, "D:\\AA\\submission_01_700_late2income.csv", row.names=F)
+submission$incentives<- 140  #submission_420$incentives
+write.csv(submission, "D:\\AA\\submission_8v280_inc140.csv", row.names=F)
 
 #submission_420 <- read.csv("D:\\AA\\submission_420.csv",stringsAsFactors = F)
 #cor(submission_420$renewal,submission$renewal_late2)
