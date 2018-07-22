@@ -1,0 +1,131 @@
+library(reshape2)
+library(tidyr)
+library(pROC)
+library(xgboost)
+
+# read inputs
+
+train <- read.csv("D:\\AA\\train_ZoGVYWq.csv",stringsAsFactors = F)
+test <- read.csv("D:\\AA\\test_66516Ee.csv",stringsAsFactors = F)
+submission <- read.csv("D:\\AA\\sample_submission_sLex1ul.csv",stringsAsFactors = F)
+train_target <- data.frame(target=train[,c('renewal')])
+
+# fill nans
+
+train$Count_3.6_months_late[is.na(train$Count_3.6_months_late)] <- 0
+train$Count_6.12_months_late[is.na(train$Count_6.12_months_late)] <- 0
+train$Count_more_than_12_months_late[is.na(train$Count_more_than_12_months_late)] <- 0
+test$Count_3.6_months_late[is.na(test$Count_3.6_months_late)] <- 0
+test$Count_6.12_months_late[is.na(test$Count_6.12_months_late)] <- 0
+test$Count_more_than_12_months_late[is.na(test$Count_more_than_12_months_late)] <- 0
+
+# one hot encoding
+
+train <- transform(train, sourcing_A = ifelse(sourcing_channel=='A', 1, 0))
+train <- transform(train, sourcing_B = ifelse(sourcing_channel=='B', 1, 0))
+train <- transform(train, sourcing_C = ifelse(sourcing_channel=='C', 1, 0))
+train <- transform(train, sourcing_D = ifelse(sourcing_channel=='D', 1, 0))
+train$sourcing_channel <- NULL
+train <- transform(train, residence_area_type = ifelse(residence_area_type=='Urban', 1, 0))
+test <- transform(test, sourcing_A = ifelse(sourcing_channel=='A', 1, 0))
+test <- transform(test, sourcing_B = ifelse(sourcing_channel=='B', 1, 0))
+test <- transform(test, sourcing_C = ifelse(sourcing_channel=='C', 1, 0))
+test <- transform(test, sourcing_D = ifelse(sourcing_channel=='D', 1, 0))
+test$sourcing_channel <- NULL
+test <- transform(test, residence_area_type = ifelse(residence_area_type=='Urban', 1, 0))
+
+#### predict missing application_underwriting_score 
+
+train$train <- 1
+test$train <- 0
+train$renewal <- NULL
+traintest<-rbind(train,test)
+train<-traintest[complete.cases(traintest),]
+score_target <- data.frame(train$application_underwriting_score)
+colnames(score_target)[1] <- 'target'
+
+
+# Making a small validation set to analyze progress
+h <-sample(nrow(score_target),10000)
+dval   <-xgb.DMatrix(data=data.matrix(train[h,]),label=score_target$target[h])
+dtrain <-xgb.DMatrix(data=data.matrix(train[-h,]),label=score_target$target[-h])
+cat("start training a model \n")
+set.seed(3322)
+xgb_watchlist <-list(val=dval,train=dtrain)
+xgb_params <- list(  objective           = "reg:linear",  
+                     booster = "gbtree",
+                     eval_metric = "rmse",
+                     eta                 = 0.01,  
+                     max_depth           = 5,  
+                     subsample           = 0.7,     
+                     colsample_bytree    = 0.7,
+                     min_child_weight = 1
+)
+xgb_model_score <- xgb.train(
+  params              = xgb_params, 
+  data                = dtrain, 
+  nrounds             = 1000,
+  verbose             = 0,  #0 if full training set and no watchlist provided
+  watchlist           = xgb_watchlist,
+  print_every_n       = 20,
+  maximize            = FALSE
+)
+pred_score <- predict(xgb_model_score, data.matrix(traintest))
+traintest$pred_score <- pred_score
+traintest$application_underwriting_score[is.na(traintest$application_underwriting_score)] <- traintest$pred_score[is.na(traintest$application_underwriting_score)]
+# excess score
+traintest$excess_score<-traintest$application_underwriting_score-traintest$pred_score
+
+#### derived features
+
+# late2income
+traintest$late2income<-(traintest$Count_3.6_months_late+1.2*traintest$Count_6.12_months_late+1.5*traintest$Count_more_than_12_months_late)*traintest$premium/traintest$Income
+# late*paid
+traintest$comb_latepaid <- traintest$perc_premium_paid_by_cash_credit * traintest$late2income
+
+#### renewal prediction XGB
+
+train <- traintest[traintest$train==1,]
+test <- traintest[traintest$train==0,]
+vars <- c('pred_score','comb_latepaid','late2income','perc_premium_paid_by_cash_credit','age_in_days','Income',
+  'Count_3.6_months_late','Count_6.12_months_late','Count_more_than_12_months_late','application_underwriting_score',
+  'no_of_premiums_paid','residence_area_type','premium','sourcing_B','sourcing_C','sourcing_D')
+train <- train[, vars]
+test <- test[, vars]
+
+h <- sample(nrow(train_target),10000)
+dval   <- xgb.DMatrix(data=data.matrix(train[h,]),label=train_target$target[h])
+dtrain <- xgb.DMatrix(data=data.matrix(train[-h,]),label=train_target$target[-h])
+cat("start training a model \n")
+set.seed(3322)
+xgb_watchlist <-list(val=dval,train=dtrain)
+xgb_params <- list(  objective           = "binary:logistic",  
+                      booster = "gbtree",
+                      eval_metric = "auc",
+                      eta                 = 0.02,  
+                      max_depth           = 4,  
+                      subsample           = 0.8,     
+                      colsample_bytree    = 0.8,
+                     min_child_weight = 1
+)
+ 
+xgb_model <- xgb.train(
+     params              = xgb_params, 
+     data                = dtrain, 
+     nrounds             = 400,
+     verbose             = 0,  #0 if full training set and no watchlist provided
+     watchlist           = xgb_watchlist,
+     print_every_n       = 20,
+     maximize            = FALSE
+ )
+importance_matrix <- xgb.importance(colnames(train), model = xgb_model)
+xgb.plot.importance(importance_matrix[1:20,])
+
+pred_xgb <- predict(xgb_model, data.matrix(test))
+submission$renewal<-pred_xgb
+submission$incentives<- 250  
+write.csv(submission, "D:\\AA\\submission_xgb_250.csv", row.names=F)
+
+
+
+
