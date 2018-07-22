@@ -112,7 +112,7 @@ xgb_params <- list(  objective           = "binary:logistic",
 xgb_model <- xgb.train(
      params              = xgb_params, 
      data                = dtrain, 
-     nrounds             = 400,
+     nrounds             = 800,
      verbose             = 0,  #0 if full training set and no watchlist provided
      watchlist           = xgb_watchlist,
      print_every_n       = 20,
@@ -120,11 +120,46 @@ xgb_model <- xgb.train(
  )
 importance_matrix <- xgb.importance(colnames(train), model = xgb_model)
 xgb.plot.importance(importance_matrix[1:20,])
+pred_xgb_train <- data.table(predict(xgb_model, data.matrix(train)))
+auc(train_target$target, pred_xgb_train$V1)
+# 0.8654
 
 pred_xgb <- predict(xgb_model, data.matrix(test))
 submission$renewal<-pred_xgb
 submission$incentives<- 250  
-write.csv(submission, "D:\\AA\\submission_xgb_250.csv", row.names=F)
+write.csv(submission, "D:\\AA\\submission_xgb_800250.csv", row.names=F)
+
+#### renewal prediction glm
+
+train_glm <- train
+train_glm$target <- train_target$target
+train_glm$Income <- NULL
+train_glm$excess_score <- NULL
+#train_glm$comb_latepremium <- NULL
+model <- glm(target ~.,family=binomial(link='logit'),data=train_glm[c(1:50000),])
+summary(model)
+
+train_glm <- train
+train_glm$target <- train_target$target
+train_glm$Income <- NULL
+train_glm$excess_score <- NULL
+train_glm$sourcing_B <- NULL
+train_glm$sourcing_C <- NULL
+train_glm$sourcing_D <- NULL
+train_glm$residence_area_type <- NULL
+train_glm$pred_score <- NULL
+model <- glm(target ~.,family=binomial(link='logit'),data=train_glm)
+summary(model)
+predglm_train <- data.table(predict(model,train_glm,type='response'))
+predglm_test <- data.table(predict(model,test,type='response'))
+mean(predglm_test$V1)
+auc(train_glm$target, predglm_train$V1)
+# 0.8316
+
+######## submit strat
+# 1_ inc adjust123
+# 0.2 glm
+# 1500 round xgb
 
 
 
