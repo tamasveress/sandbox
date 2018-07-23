@@ -135,21 +135,14 @@ train_glm <- train
 train_glm$target <- train_target$target
 train_glm$Income <- NULL
 train_glm$excess_score <- NULL
-#train_glm$comb_latepremium <- NULL
-model <- glm(target ~.,family=binomial(link='logit'),data=train_glm[c(1:50000),])
-summary(model)
-
-train_glm <- train
-train_glm$target <- train_target$target
-train_glm$Income <- NULL
-train_glm$excess_score <- NULL
+train_glm$residence_area_type <- NULL
 train_glm$sourcing_B <- NULL
 train_glm$sourcing_C <- NULL
 train_glm$sourcing_D <- NULL
-train_glm$residence_area_type <- NULL
 train_glm$pred_score <- NULL
 model <- glm(target ~.,family=binomial(link='logit'),data=train_glm)
 summary(model)
+
 predglm_train <- data.table(predict(model,train_glm,type='response'))
 predglm_test <- data.table(predict(model,test,type='response'))
 mean(predglm_test$V1)
@@ -161,6 +154,34 @@ auc(train_glm$target, predglm_train$V1)
 # 0.2 glm
 # 1500 round xgb
 
+####### Opt incentive
+# benchmark model by the insurance company in unknown thus parameters are fitted to public test data
+
+for (i in 1:34224) {
+    premium <- test$premium[i] 
+    baseprob <- 0.95*submission$renewal[i]
+    p <- (premium*baseprob)
+    i_opt <- 0 
+    baseprofit <- p - i_opt
+    dprob <- 0
+    
+    for (inc in 1:3000) {
+        effort <- 10*(1-exp(-inc/400))
+        dprob <- 20*(1-exp(-effort/5))
+        profit <- p*(1+dprob/100) - inc
+        if (profit > baseprofit) {
+        i_opt <- inc
+        dprob <- dprob
+        baseprofit <- profit
+        }
+    }
+    
+    if (((dprob/100+1)*baseprob)>1) {
+        effort <- (-5)*log(1-(1/baseprob-1)*5)
+        i_opt <- (-400) * log(1-effort/10)
+    }
+    submission$incentives[i] <- i_opt
+}
 
 
 
