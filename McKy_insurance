@@ -2,6 +2,7 @@ library(reshape2)
 library(tidyr)
 library(pROC)
 library(xgboost)
+library(gbts)
 
 # read inputs
 
@@ -118,6 +119,11 @@ xgb_model <- xgb.train(
      print_every_n       = 20,
      maximize            = FALSE
  )
+# gbts
+# model <- gbts(train, train_target$target[c(1:50000)], nitr = 200, pfmc = "auc")
+# pred_test <- predict(model, test)
+# comperf(train_target$target[c(50001:79853)], pred_test, pfmc = "auc")
+
 importance_matrix <- xgb.importance(colnames(train), model = xgb_model)
 xgb.plot.importance(importance_matrix[1:20,])
 pred_xgb_train <- data.table(predict(xgb_model, data.matrix(train)))
